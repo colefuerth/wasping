@@ -1,6 +1,7 @@
 use anyhow::{Context, Result};
 use clap::Parser;
 use std::io::stdout;
+use std::time::Duration;
 use std::{fs::File, io::Write};
 use tokio::sync::mpsc;
 
@@ -39,17 +40,17 @@ async fn wasping<W: Write + Send + 'static>(
 
     // 32 length because fuck it idk. id have to benchmark or use heuristics to get a real number
     // TODO: change to &str
-    let (result_tx, mut result_rx) = mpsc::channel::<(u32, bool)>(32);
+    let (result_tx, mut result_rx) = mpsc::channel::<(u32, char)>(32);
 
     // TODO: add a second channel so that the writer can start by reading existing data
     // and telling the agent which addresses to ping, as ranges
     // let (ranges_tx, mut ranges_rx) = mpsc::channel::<String>(32);
 
-    let agent =
-        tokio::spawn(async move { pinger::sender(result_tx).await });
+    let timeout = Duration::from_secs(1);
 
-    let recv =
-        tokio::spawn(async move { writer::writer(&mut result_rx, out).await });
+    let agent = tokio::spawn(async move { pinger::sender(result_tx, timeout).await });
+
+    let recv = tokio::spawn(async move { writer::writer(&mut result_rx, out).await });
 
     // crawler_q_tx.send(root_url).await?;
 

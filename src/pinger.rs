@@ -2,19 +2,20 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use anyhow::Result;
+use ipnet::Ipv4AddrRange;
 use std::net::{IpAddr, Ipv4Addr};
 use tokio::sync::mpsc;
-use ipnet::Ipv4AddrRange;
 use tokio::task::JoinSet;
 
 pub async fn sender(
     // queue_rx: &mut mpsc::Receiver<(u32, u32)>,
-    result_tx: mpsc::Sender<(u32, bool)>,
+    result_tx: mpsc::Sender<(u32, char)>,
+    timeout: Duration,
     // limit: u32,
 ) -> Result<()> {
     let pinger = tokio_icmp_echo::Pinger::new().await.unwrap();
-    let from_addr = Ipv4Addr::new(192, 168, 0, 1);
-    let to_addr = Ipv4Addr::new(192, 168, 0, 55);
+    let from_addr = Ipv4Addr::new(192, 168, 0, 0);
+    let to_addr = Ipv4Addr::new(192, 168, 255, 255);
     // use an arc to share the client between tasks
     // each client will ping an address in the address range
     let pinger = Arc::new(pinger);
@@ -27,25 +28,29 @@ pub async fn sender(
         waitset.spawn(async move {
             let ident = (addr.octets()[3] as u16) + ((addr.octets()[2] as u16) << 8);
             let res = pinger
-                .ping(IpAddr::from(addr), ident, 1, Duration::new(5, 0))
+                .ping(IpAddr::from(addr), ident, 1, timeout)
                 .await;
-            println!("sender got {}: {:?}", addr, res);
-            // send the result to the tx
-            result_tx
-                .send((addr.into(), res.is_ok()))
-                .await
-                .unwrap();
+            // if result is ok and a time, then return true
+            // if result is ok and None, then return false
+            // if result is err, then error
+            match res {
+                Ok(Some(_)) => {
+                    result_tx.send((addr.into(), '1')).await.unwrap();
+                }
+                Ok(None) => {
+                    result_tx.send((addr.into(), '0')).await.unwrap();
+                }
+                Err(e) => {
+                    result_tx.send((addr.into(), 'e')).await.unwrap();
+                    eprintln!("error: {}", e);
+                }
+            }
         });
     }
 
     // wait for all tasks to finish
     while let Some(res) = waitset.join_next().await {
-        match res {
-            Ok(_) => {}
-            Err(e) => {
-                eprintln!("error: {}", e);
-            }
-        }
+        res?;
     }
 
     // result_tx.closed().await;
