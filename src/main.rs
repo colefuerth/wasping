@@ -4,20 +4,16 @@ use std::io::stdout;
 use std::{fs::File, io::Write};
 use tokio::sync::mpsc;
 
-mod crawler;
-mod identity;
+mod pinger;
+mod writer;
 
 #[derive(Parser, Debug)]
 #[command(version, about, long_about = None)]
 struct Args {
-    #[arg(short, long, default_value_t = String::from("https://ryanprairie.com"))]
-    root: String,
-
-    #[arg(short, long, default_value_t = String::from("web-graph.txt"))]
+    #[arg(short, long, default_value_t = String::from("-"))]
     output: String,
-
-    #[arg(short, long, default_value_t = 100)]
-    limit: u32,
+    // #[arg(short, long, default_value_t = 32)]
+    // limit: u32,
 }
 
 #[tokio::main]
@@ -25,40 +21,39 @@ async fn main() -> Result<(), anyhow::Error> {
     let args = Args::parse();
 
     match args.output.as_str() {
-        "-" => flytrap(args.root, stdout(), args.limit).await.unwrap(),
+        "-" => wasping(stdout()).await.unwrap(),
         _ => {
             let f = File::create(&args.output)
                 .with_context(|| format!("file {} cannot be created", args.output))?;
-            flytrap(args.root, f, args.limit).await.unwrap()
+            wasping(f).await.unwrap()
         }
     }
     Ok(())
 }
 
-async fn flytrap<W: Write + Send + 'static>(
-    root_url: String,
+async fn wasping<W: Write + Send + 'static>(
     out: W,
-    limit: u32,
+    // limit: u32,
 ) -> Result<(), anyhow::Error> {
     //out.write("hi\n".as_bytes()).expect("whoops");
 
     // 32 length because fuck it idk. id have to benchmark or use heuristics to get a real number
     // TODO: change to &str
-    let (iden_q_tx, mut iden_q_rx) = mpsc::channel::<(String, String)>(32);
+    let (result_tx, mut result_rx) = mpsc::channel::<(u32, bool)>(32);
 
-    // TODO: change to &str
-    let (crawler_q_tx, mut crawler_q_rx) = mpsc::channel::<String>(32);
+    // TODO: add a second channel so that the writer can start by reading existing data
+    // and telling the agent which addresses to ping, as ranges
+    // let (ranges_tx, mut ranges_rx) = mpsc::channel::<String>(32);
 
-    let disp =
-        tokio::spawn(async move { crawler::dispatcher(&mut crawler_q_rx, iden_q_tx, limit).await });
+    let agent =
+        tokio::spawn(async move { pinger::sender(result_tx).await });
 
-    let crawler_tx_clone = crawler_q_tx.clone();
-    let iden =
-        tokio::spawn(async move { identity::writer(crawler_tx_clone, &mut iden_q_rx, out).await });
+    let recv =
+        tokio::spawn(async move { writer::writer(&mut result_rx, out).await });
 
-    crawler_q_tx.send(root_url).await?;
+    // crawler_q_tx.send(root_url).await?;
 
-    let _ = disp.await?;
-    let _ = iden.await?;
+    let _ = agent.await?;
+    let _ = recv.await?;
     Ok(())
 }
