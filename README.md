@@ -1,11 +1,14 @@
-# flytrap
+# wasping
 
-a pretty fast concurrent web crawler. creates an adjacency list.
+A concurrent ping engine in Rust. Used Ryan Prairie's [flytrap](https://github.com/prairir/flytrap) architecture.
 
-## Why?
+*Requires `sudo` to run.*
 
-I wanted to learn more rust and I had to do this for school anyway.
+## Usage
 
-## How?
+```bash
+wasping <optional:-o|--output <output>> {optional:-l|--limit <limit>}
+```
 
-Read ARCHITECTURE.md to learn more
+- output: The output file to write to. Defaults to `stdout`.
+- limit: The maximum number of concurrent pings to run. Defaults to `10000`.
