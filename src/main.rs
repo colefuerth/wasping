@@ -1,8 +1,8 @@
 use anyhow::{Context, Result};
 use clap::Parser;
-use std::io::stdout;
+use std::fs::create_dir;
+// use std::io::stdout;
 use std::time::Duration;
-use std::{fs::File, io::Write};
 use tokio::sync::mpsc;
 
 mod pinger;
@@ -11,7 +11,7 @@ mod writer;
 #[derive(Parser, Debug)]
 #[command(version, about, long_about = None)]
 struct Args {
-    #[arg(short, long, default_value_t = String::from("-"))]
+    #[arg(short, long, default_value_t = String::from("ips/"))]
     output: String,
     #[arg(short, long, default_value_t = 1000)]
     limit: u32,
@@ -21,18 +21,17 @@ struct Args {
 async fn main() -> Result<(), anyhow::Error> {
     let args = Args::parse();
 
-    match args.output.as_str() {
-        "-" => wasping(stdout(), args.limit).await.unwrap(),
-        _ => {
-            let f = File::create(&args.output)
-                .with_context(|| format!("file {} cannot be created", args.output))?;
-            wasping(f, args.limit).await.unwrap()
-        }
-    }
+    // match args.output.as_str() {
+    //     "-" => wasping(stdout(), args.limit).await.unwrap(),
+    //     _ => {
+    create_dir(args.output.clone()).context("Failed to create output directory")?;
+    wasping(args.output, args.limit).await.unwrap();
+    // }
+    // }
     Ok(())
 }
 
-async fn wasping<W: Write + Send + 'static>(out: W, limit: u32) -> Result<(), anyhow::Error> {
+async fn wasping(out: String, limit: u32) -> Result<(), anyhow::Error> {
     // 32 length because fuck it idk. id have to benchmark or use heuristics to get a real number
     // TODO: change to &str
     let (result_tx, mut result_rx) = mpsc::channel::<(u32, char)>(32);

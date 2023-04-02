@@ -68,7 +68,7 @@ pub async fn sender(
             } else {
                 result_tx.send((addr.into(), '0')).await.unwrap();
             }
-            println!("{}: {}", addr, status);
+            println!("{addr}: {status}");
         });
         // --------------------------------
         tokio::time::sleep(Duration::from_secs_f32(delay)).await;
