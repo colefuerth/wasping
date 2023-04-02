@@ -50,6 +50,6 @@ async fn wasping<W: Write + Send + 'static>(out: W, limit: u32) -> Result<(), an
     // crawler_q_tx.send(root_url).await?;
 
     let _ = agent.await?;
-    let _ = recv.await?;
+    recv.await?;
     Ok(())
 }

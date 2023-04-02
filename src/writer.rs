@@ -16,7 +16,7 @@ pub async fn writer<W: Write + Send + 'static>(
         let from_id = Ipv4Addr::from(from).to_string();
         println!("{}: {:?}", from_id, res);
 
-        out.write(format!("{},{}\n", from_id, res).as_bytes())
+        out.write_all(format!("{},{}\n", from_id, res).as_bytes())
             .expect("whoops");
     }
     drop(out);
